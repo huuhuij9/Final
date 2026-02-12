@@ -5,24 +5,13 @@ getgenv().WallCheck = true
 getgenv().Noclip_Enabled = false
 getgenv().Underground_Enabled = false 
 getgenv().HitboxSize = 15
+getgenv().GhostHitboxSize = 30 -- Tamanho quando estiver no Ghost Mode
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local StarterGui = game:GetService("StarterGui") -- Para notificações do sistema
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local fakeBody = nil
-
--- 4. FUNÇÃO DE NOTIFICAÇÃO (UI FEEDBACK)
-local function Notify(title, text, duration)
-    StarterGui:SetCore("SendNotification", {
-        Title = title;
-        Text = text;
-        Duration = duration or 3;
-    })
-end
-
-Notify("HRZ V5.1", "Script Carregado com Sucesso!", 5)
 
 -- LIMPEZA DE GUIS ANTIGAS
 if player.PlayerGui:FindFirstChild("HRZ_COMPATIBLE_V5") then 
@@ -43,7 +32,7 @@ sg.Name = "HRZ_COMPATIBLE_V5"
 sg.ResetOnSpawn = false
 
 local SideFrame = Instance.new("Frame", sg)
-SideFrame.Size = UDim2.new(0, 55, 0, 310) 
+SideFrame.Size = UDim2.new(0, 55, 0, 310)
 SideFrame.Position = UDim2.new(0, 10, 0.3, 0)
 SideFrame.BackgroundTransparency = 0.8
 SideFrame.BackgroundColor3 = Color3.new(0,0,0)
@@ -51,12 +40,12 @@ SideFrame.Active = true
 SideFrame.Draggable = true 
 
 Instance.new("UICorner", SideFrame).CornerRadius = UDim.new(0, 10)
+
 local layout = Instance.new("UIListLayout", SideFrame)
 layout.Padding = UDim.new(0, 8)
 layout.HorizontalAlignment = "Center"
 layout.VerticalAlignment = "Center"
 
--- FUNÇÃO PARA CRIAR OS TOGGLES COM NOTIFICAÇÃO
 local function CreateToggle(name, varName, colorOn, specialCallback)
     local btn = Instance.new("TextButton", SideFrame)
     btn.Size = UDim2.new(0, 45, 0, 45)
@@ -69,7 +58,6 @@ local function CreateToggle(name, varName, colorOn, specialCallback)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
 
     local function UpdateVisual()
-        local status = getgenv()[varName] and "LIGADO" or "DESLIGADO"
         btn.BackgroundColor3 = getgenv()[varName] and colorOn or Color3.fromRGB(40, 40, 40)
         btn.Text = name .. "\n" .. (getgenv()[varName] and "ON" or "OFF")
     end
@@ -79,53 +67,16 @@ local function CreateToggle(name, varName, colorOn, specialCallback)
     btn.MouseButton1Click:Connect(function()
         getgenv()[varName] = not getgenv()[varName]
         UpdateVisual()
-        Notify(name, name .. " está agora " .. (getgenv()[varName] and "ATIVADO" or "DESATIVADO"))
         if specialCallback then specialCallback() end
     end)
 end
 
--- 5. FUNÇÃO WALL CHECK APERFEIÇOADA
-local function IsVisible(targetPart)
-    if not getgenv().WallCheck then return true end
-    
-    local origin = camera.CFrame.Position
-    local direction = (targetPart.Position - origin)
-    
-    local raycastParams = RaycastParams.new()
-    -- Ignora o jogador local, outros jogadores e acessórios
-    local ignoreList = {player.Character, camera}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then 
-            table.insert(ignoreList, p.Character) 
-        end
-    end
-    
-    raycastParams.FilterDescendantsInstances = ignoreList
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    
-    local result = workspace:Raycast(origin, direction, raycastParams)
-    
-    -- Se bater em algo, verifica se é colidível ou transparente
-    if result then
-        local part = result.Instance
-        if part.CanCollide == false or part.Transparency > 0.7 then
-            return true -- Ignora objetos sem colisão ou muito transparentes
-        end
-        return false -- Bateu em uma parede sólida
-    end
-    
-    return true
-end
-
--- CALLBACK ESPECIAL PARA O GHOST UNDER
 local function ToggleGhost()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         if getgenv().Underground_Enabled then
-            getgenv().HBE_Enabled = true
-            getgenv().WallCheck = false 
-            
+            getgenv().WallCheck = false -- Desativa WallCheck para bater debaixo da terra
             char.Archivable = true
             fakeBody = char:Clone()
             fakeBody.Parent = workspace
@@ -142,21 +93,35 @@ local function ToggleGhost()
     end
 end
 
--- CRIANDO OS BOTÕES
 CreateToggle("ESP", "ESP_Enabled", Color3.fromRGB(0, 170, 255))
 CreateToggle("HBX", "HBE_Enabled", Color3.fromRGB(255, 170, 0))
 CreateToggle("WALL", "WallCheck", Color3.fromRGB(170, 0, 255))
 CreateToggle("NOCP", "Noclip_Enabled", Color3.fromRGB(255, 0, 80))
 CreateToggle("GST", "Underground_Enabled", Color3.fromRGB(0, 255, 150), ToggleGhost)
 
--- LOOP PRINCIPAL (COM OTIMIZAÇÃO BÁSICA)
+local function IsVisible(targetPart)
+    if not getgenv().WallCheck then return true end
+    local origin = camera.CFrame.Position
+    local direction = (targetPart.Position - origin)
+    local raycastParams = RaycastParams.new()
+    local ignoreList = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then table.insert(ignoreList, p.Character) end
+    end
+    raycastParams.FilterDescendantsInstances = ignoreList
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(origin, direction, raycastParams)
+    return result == nil
+end
+
+-- LOOP PRINCIPAL
 RunService.Stepped:Connect(function()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         
         if (getgenv().Noclip_Enabled or getgenv().Underground_Enabled) then
-            for _, part in pairs(char:GetChildren()) do -- Use GetChildren para ser mais leve que Descendants
+            for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
         end
@@ -170,6 +135,7 @@ RunService.Stepped:Connect(function()
         end
     end
 
+    -- Lógica de Hitbox Dinâmica
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local root = p.Character.HumanoidRootPart
@@ -177,22 +143,21 @@ RunService.Stepped:Connect(function()
             if hum and hum.Health > 0 then
                 local visible = IsVisible(root)
                 
-                if getgenv().HBE_Enabled and (visible or getgenv().Underground_Enabled) then
-                    local size = getgenv().Underground_Enabled and 30 or getgenv().HitboxSize
-                    root.Size = Vector3.new(size, size, size)
-                    root.Transparency = 1 -- Melhorado para você ver onde está a hitbox
-                    root.Color = Color3.new(1,0,0)
-                    root.CanCollide = false
+                -- CHECAGEM DE HITBOX (MODIFICADA)
+                if getgenv().HBE_Enabled and visible then
+                    -- Se Ghost estiver ON, usa 30, senão usa o HitboxSize normal (15)
+                    local currentSize = getgenv().Underground_Enabled and getgenv().GhostHitboxSize or getgenv().HitboxSize
+                    root.Size = Vector3.new(currentSize, currentSize, currentSize)
+                    root.Transparency = 1
                 else
                     root.Size = Vector3.new(2, 2, 1)
-                    root.Transparency = 1
                 end
-                
+
+                -- ESP
                 local hl = p.Character:FindFirstChild("HRZ_Highlight")
                 if getgenv().ESP_Enabled then
                     if not hl then hl = Instance.new("Highlight", p.Character); hl.Name = "HRZ_Highlight" end
                     hl.FillColor = visible and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-                    hl.OutlineTransparency = 0
                 elseif hl then hl:Destroy() end
             end
         end

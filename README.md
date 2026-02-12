@@ -32,7 +32,7 @@ sg.ResetOnSpawn = false
 
 -- CONTAINER MOVÍVEL
 local SideFrame = Instance.new("Frame", sg)
-SideFrame.Size = UDim2.new(0, 55, 0, 310) -- Aumentado para caber o novo botão
+SideFrame.Size = UDim2.new(0, 55, 0, 310) 
 SideFrame.Position = UDim2.new(0, 10, 0.3, 0)
 SideFrame.BackgroundTransparency = 0.8
 SideFrame.BackgroundColor3 = Color3.new(0,0,0)
@@ -72,16 +72,15 @@ local function CreateToggle(name, varName, colorOn, specialCallback)
     end)
 end
 
--- CALLBACK ESPECIAL PARA O GHOST UNDER (MODIFICADO)
+-- CALLBACK ESPECIAL PARA O GHOST UNDER (ATUALIZADO)
 local function ToggleGhost()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         if getgenv().Underground_Enabled then
-            -- Desativa o WallCheck para a Hitbox funcionar debaixo da terra
-            getgenv().WallCheck = false
+            getgenv().HBE_Enabled = true -- Ativa a hitbox automaticamente
+            getgenv().WallCheck = false  -- Permite hit através do chão
             
-            -- Cria o corpo falso
             char.Archivable = true
             fakeBody = char:Clone()
             fakeBody.Parent = workspace
@@ -89,20 +88,16 @@ local function ToggleGhost()
             for _, p in pairs(fakeBody:GetChildren()) do
                 if p:IsA("BasePart") then p.CanCollide = false p.Transparency = 0.5 end
             end
-            -- Teleporta para baixo
             hrp.CFrame = hrp.CFrame * CFrame.new(0, -15, 0)
         else
-            -- Reativa o WallCheck ao voltar ao normal
             getgenv().WallCheck = true
-            
-            -- Remove corpo falso e volta
             if fakeBody then fakeBody:Destroy() end
             hrp.CFrame = hrp.CFrame * CFrame.new(0, 16, 0)
         end
     end
 end
 
--- CRIANDO OS BOTÕES (INCLUINDO GHOST)
+-- CRIANDO OS BOTÕES
 CreateToggle("ESP", "ESP_Enabled", Color3.fromRGB(0, 170, 255))
 CreateToggle("HBX", "HBE_Enabled", Color3.fromRGB(255, 170, 0))
 CreateToggle("WALL", "WallCheck", Color3.fromRGB(170, 0, 255))
@@ -131,14 +126,12 @@ RunService.Stepped:Connect(function()
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         
-        -- Lógica Noclip ou Ghost Under
         if (getgenv().Noclip_Enabled or getgenv().Underground_Enabled) then
             for _, part in pairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
         end
 
-        -- Lógica Ghost (Plataforma)
         if getgenv().Underground_Enabled then
             plat.CanCollide = true
             plat.CFrame = hrp.CFrame * CFrame.new(0, -3.2, 0)
@@ -148,22 +141,24 @@ RunService.Stepped:Connect(function()
         end
     end
 
-    -- Jogadores (ESP e Hitbox)
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local root = p.Character.HumanoidRootPart
             local hum = p.Character:FindFirstChild("Humanoid")
             if hum and hum.Health > 0 then
                 local visible = IsVisible(root)
-                -- Hitbox
-                if getgenv().HBE_Enabled and visible then
-                    root.Size = Vector3.new(getgenv().HitboxSize, getgenv().HitboxSize, getgenv().HitboxSize)
+                
+                -- LÓGICA DE HITBOX ATUALIZADA (FORÇA 30 NO GHOST)
+                if getgenv().HBE_Enabled and (visible or getgenv().Underground_Enabled) then
+                    local size = getgenv().Underground_Enabled and 30 or getgenv().HitboxSize
+                    root.Size = Vector3.new(size, size, size)
                     root.Transparency = 1
+                    root.CanCollide = false
                 else
                     root.Size = Vector3.new(2, 2, 1)
                     root.Transparency = 1
                 end
-                -- ESP
+                
                 local hl = p.Character:FindFirstChild("HRZ_Highlight")
                 if getgenv().ESP_Enabled then
                     if not hl then hl = Instance.new("Highlight", p.Character); hl.Name = "HRZ_Highlight" end

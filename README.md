@@ -72,12 +72,15 @@ local function CreateToggle(name, varName, colorOn, specialCallback)
     end)
 end
 
--- CALLBACK ESPECIAL PARA O GHOST UNDER
+-- CALLBACK ESPECIAL PARA O GHOST UNDER (MODIFICADO)
 local function ToggleGhost()
     local char = player.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         if getgenv().Underground_Enabled then
+            -- Desativa o WallCheck para a Hitbox funcionar debaixo da terra
+            getgenv().WallCheck = false
+            
             -- Cria o corpo falso
             char.Archivable = true
             fakeBody = char:Clone()
@@ -89,6 +92,9 @@ local function ToggleGhost()
             -- Teleporta para baixo
             hrp.CFrame = hrp.CFrame * CFrame.new(0, -15, 0)
         else
+            -- Reativa o WallCheck ao voltar ao normal
+            getgenv().WallCheck = true
+            
             -- Remove corpo falso e volta
             if fakeBody then fakeBody:Destroy() end
             hrp.CFrame = hrp.CFrame * CFrame.new(0, 16, 0)
